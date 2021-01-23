@@ -1,0 +1,307 @@
+void EVA::Find_real_data()
+{
+	int de_num = 0;                 //代表0还是1
+	int int_num = 0;                //整数部分
+	float left_num = 0;   //下一个的余数
+	int* len;
+	int* _01_;
+	double* left_n;                 //将余数保存起来
+	int* avil_way;
+	len = new int[num_of_lianxv[0].size()];
+	_01_ = new int[num_of_lianxv[0].size()];
+	left_n = new double[num_of_lianxv[0].size()];
+	avil_way = new int[num_of_lianxv[0].size()];
+	for (int i = 0; i < num_of_lianxv[0].size(); i++)
+	{
+		avil_way[i] = 0;          //初始化
+		de_num = num_of_lianxv[1][i];
+		int_num = num_of_lianxv[0][i] / pxlength;
+		left_num = num_of_lianxv[0][i] / pxlength - int_num;
+		left_n[i] = left_num;
+		if (int_num >= 1)
+		{
+			if (left_num >= 0.5)
+			{
+				len[i] = (int_num + 1);
+				_01_[i] = de_num;
+			}
+			else
+			{
+				len[i] = int_num;
+				_01_[i] = de_num;
+			}
+		}
+		else
+		{
+			len[i] = 1;
+			_01_[i] = de_num;
+		}
+	}
+	int change_index = -1;
+	for (int i = 0; i < num_of_lianxv[0].size() - 1; i++)              //二次筛选，将解码之间的关系建立起来                       
+	{
+		int temp = i + 1;
+		int_num = (num_of_lianxv[0][i] + num_of_lianxv[0][temp])/ pxlength;
+		left_num = left_n[i] + left_n[temp];
+		if (left_num >= 0.5) int_num++;
+		int source_len = len[i] + len[temp];
+
+		if (source_len < int_num)
+		{
+			if (avil_way[i] == 0)
+			{
+				if (num_of_lianxv[0][i] < num_of_lianxv[0][temp])              //大的length更容易受到卷帘效应的影响 同时结合概率进行判断
+				{
+					len[temp]++;
+					change_index = temp;
+					avil_way[i] = avil_way[temp] = 1;         //已经使用过了
+				}
+				else
+				{
+					len[i]++;
+					change_index = i;
+					avil_way[i] = avil_way[temp] = 1;         //已经使用过了
+				}
+			}
+			else
+			{
+				if (num_of_lianxv[0][i] < num_of_lianxv[0][temp])              //大的length更容易受到卷帘效应的影响
+				{
+					if (change_index != -1 && (num_of_lianxv[0][change_index] < num_of_lianxv[0][temp]))
+					{
+						len[temp] ++;
+						len[change_index]--;
+						change_index = temp;
+						avil_way[i] = avil_way[temp] = 1;         //已经使用过了
+					}
+				}
+			}
+		}
+	}
+	for (int i = 0; i < num_of_lianxv[0].size(); i++)
+	{
+		for (int j = 0; j < len[i]; j++) my_decode.push_back(_01_[i]);
+	}
+	cout << "my_decode如下：" << endl;
+	for (int i = 0; i < my_decode.size(); i++)cout << my_decode[i];
+	cout << endl;
+	delete[num_of_lianxv[0].size()] avil_way;
+	delete[num_of_lianxv[0].size()] _01_;
+	delete[num_of_lianxv[0].size()] left_n;
+	delete[num_of_lianxv[0].size()]len;
+}
+
+
+
+void count_error_rate(int First_header)
+{
+	/////////////////先计算0，1的长度，减少不必要的计算
+	int real_data_len = sizeof(channel_data) / sizeof(int);
+	vector<int> R_len_01_num[2];            //real_data
+	vector<int> M_len_01_num[2];            //my_data
+	int num0 = 0;
+	int num1 = 0;
+	for (int i = 0; i < real_data_len; i++)           //将数据的data转换为len —— num的组合
+	{
+		if (channel_data[i] == 0 && num1 == 0)
+		{
+			num0++;
+		}
+		else if (channel_data[i] == 0 && num1 != 0)
+		{
+			num0++;
+			R_len_01_num[0].push_back(num1);
+			R_len_01_num[1].push_back(1);
+			num1 = 0;
+		}
+		else if (channel_data[i] == 1 && num0 == 0)
+		{
+			num1++;
+		}
+		else if (channel_data[i] == 1 && num0 != 0)
+		{
+			num1++;
+			R_len_01_num[0].push_back(num0);
+			R_len_01_num[1].push_back(0);
+			num0 = 0;
+		}
+	}
+	if (num0 != 0)
+	{
+		R_len_01_num[0].push_back(num0);
+		R_len_01_num[1].push_back(0);
+	}
+	else
+	{
+		R_len_01_num[0].push_back(num1);
+		R_len_01_num[1].push_back(1);
+	}
+	////////////////////////////////////////////计算my_decode的len和num   求BER
+	num0 = 0;
+	num1 = 0;
+	///////////////////////////////////////求my_decode前半部分的len和num 
+	for (int ptr = 0; ptr <= First_header - 1; ptr++)  //ptr 指向的是my_decode的index
+	{
+		if (my_decode[ptr] == 0 && num1 == 0)
+		{
+			num0++;
+		}
+		else if (my_decode[ptr] == 0 && num1 != 0)
+		{
+			num0++;
+			M_len_01_num[0].push_back(num1);
+			M_len_01_num[1].push_back(1);
+			num1 = 0;
+		}
+		else if (my_decode[ptr] == 1 && num0 == 0)
+		{
+			num1++;
+		}
+		else if (my_decode[ptr] == 1 && num0 != 0)
+		{
+			num1++;
+			M_len_01_num[0].push_back(num0);
+			M_len_01_num[1].push_back(0);
+			num0 = 0;
+		}
+	}
+	if (num0 != 0)
+	{
+		M_len_01_num[0].push_back(num0);
+		M_len_01_num[1].push_back(0);
+	}
+	else
+	{
+		M_len_01_num[0].push_back(num1);
+		M_len_01_num[1].push_back(1);
+	}
+	int Rlen = R_len_01_num[0].size();
+	int Mlen = M_len_01_num[0].size();
+	int error = 0;
+	//////////////////////////////////////////开始比较
+	int Rnum = 0;                                       //用于给真实值设置偏移量
+	for (int i = 1; i <= Mlen; i++)
+	{
+		int powe = 1;
+		while (powe * Rlen - i - Rnum < 0)  powe++;
+		if (M_len_01_num[1][Mlen - i] == R_len_01_num[1][powe * Rlen - i - Rnum])
+		{
+			int left_abs = abs(M_len_01_num[0][Mlen - i] - R_len_01_num[0][powe * Rlen - i - Rnum]);           //相差的绝对值
+			if (left_abs <= 1) error += left_abs;                                          //如果出现两个以上就视为我的算法不好，让用户手动计算
+			else
+			{
+				int temp = powe * Rlen - i - Rnum;
+				int temp1 = i + 1;                      //用于处理    00    1    0    被误认为是        0000         的情况           此处只处理两步
+				int temp2 = i + 2;
+				powe = 1;
+				while (powe * Rlen - temp1 - Rnum < 0) powe++;
+				temp1 = powe * Rlen - temp1 - Rnum;
+				powe = 1;
+				while (powe * Rlen - temp2 - Rnum < 0) powe++;
+				temp2 = powe * Rlen - temp2 - Rnum;
+				left_abs = abs(M_len_01_num[0][Mlen - i] - R_len_01_num[0][temp] - R_len_01_num[0][temp1] - R_len_01_num[0][temp2]);
+				if (left_abs <= 3)
+				{
+					left_abs = abs(M_len_01_num[0][Mlen - i] - (R_len_01_num[0][temp] + R_len_01_num[0][temp2]));
+					error = error + R_len_01_num[0][temp1] + left_abs;                                  ///////////漏掉的数
+					Rnum += 2;
+				}
+				else
+				{
+					cout << "算法有问题" << endl;
+				}
+			}
+		}
+		else
+		{
+			cout << "请手动比较1" << endl;
+			break;
+		}
+	}
+	num0 = 0;
+	num1 = 0;
+	M_len_01_num[0].clear();
+	M_len_01_num[1].clear();
+	////////////////////////////////////求my_decode后半部分的len和num
+	for (int ptr = First_header; ptr < my_decode.size(); ptr++)  //ptr 指向的是my_decode的index
+	{
+		if (my_decode[ptr] == 0 && num1 == 0)
+		{
+			num0++;
+		}
+		else if (my_decode[ptr] == 0 && num1 != 0)
+		{
+			num0++;
+			M_len_01_num[0].push_back(num1);
+			M_len_01_num[1].push_back(1);
+			num1 = 0;
+		}
+		else if (my_decode[ptr] == 1 && num0 == 0)
+		{
+			num1++;
+		}
+		else if (my_decode[ptr] == 1 && num0 != 0)
+		{
+			num1++;
+			M_len_01_num[0].push_back(num0);
+			M_len_01_num[1].push_back(0);
+			num0 = 0;
+		}
+	}
+	if (num0 != 0)
+	{
+		M_len_01_num[0].push_back(num0);
+		M_len_01_num[1].push_back(0);
+	}
+	else
+	{
+		M_len_01_num[0].push_back(num1);
+		M_len_01_num[1].push_back(1);
+	}
+	Mlen = M_len_01_num[0].size();
+
+	Rnum = 0;
+	for (int i = 0; i < Mlen; i++)
+	{
+		int powe = 0;
+		while (Rnum + i - powe * Rlen >= Rlen) powe++;
+		if (M_len_01_num[1][i] == R_len_01_num[1][Rnum + i - powe * Rlen])
+		{
+			int left_abs = abs(M_len_01_num[0][i] - R_len_01_num[0][Rnum + i - powe * Rlen]);
+			if (left_abs <= 1) error += left_abs;
+			else
+			{
+				int temp = Rnum + i - powe * Rlen;
+				int temp1 = i + 1;                      //用于处理    00    1    0    被误认为是        0000         的情况           此处只处理两步
+				int temp2 = i + 2;
+				powe = 0;
+				while (Rnum + temp1 - powe * Rlen >= Rlen) powe++;
+				temp1 = Rnum + temp1 - powe * Rlen;
+				powe = 0;
+				while (Rnum + temp2 - powe * Rlen >= Rlen) powe++;
+				temp2 = Rnum + temp2 - powe * Rlen;
+				left_abs = abs(M_len_01_num[0][i] - R_len_01_num[0][temp] - R_len_01_num[0][temp1] - R_len_01_num[0][temp2]);
+				if (left_abs <= 3)
+				{
+					left_abs = abs(M_len_01_num[0][i] - (R_len_01_num[0][temp] + R_len_01_num[0][temp2]));
+					error = error + R_len_01_num[0][temp1] + left_abs;                                  ///////////漏掉的数
+					Rnum += 2;
+				}
+				else
+				{
+					cout << "算法有问题2" << endl;
+				}
+			}
+		}
+		else
+		{
+			cout << "请手动比较2" << endl;
+			break;
+		}
+	}
+
+	error_num += error;
+	sum_num += my_decode.size();
+	cout << "error_num" << error_num << endl;
+	cout << "sum_num" << sum_num << endl;
+}
