@@ -10,7 +10,7 @@
 using namespace std;
 using namespace cv;                  //flag形参用于将来跟踪下一个帧
 
-double  power[3] = { 0.333333333,0.333333333,0.333333333 };
+double  power[3] = { 0.3,0.1,0.6 };
 double sigma[3] = { 15,80,200 };
 
 
@@ -259,7 +259,7 @@ void count_error_rate(int First_header, int Second_header, int flag)
 									erroR += real_len_01_num[0][ptr_r + 1];
 									ptr_r += 2;
 								}
-								if (abs(diff_num) == 1)
+								else if (abs(diff_num) == 1)
 								{
 									erroR += (real_len_01_num[0][ptr_r + 1] + 1);
 									ptr_r += 2;
@@ -446,7 +446,7 @@ void count_error_rate(int First_header, int Second_header, int flag)
 		///////////////////////////////////////求my_decode前半部分的len和num 
 		if (using_BER != 0)
 		{
-			for (int i = real_data_len-1; i >= 0; i--)
+			for (int i = real_data_len - 1; i >= 0; i--)
 			{
 				if (channel_data[i] == 0 && num1 == 0)
 				{
@@ -484,7 +484,7 @@ void count_error_rate(int First_header, int Second_header, int flag)
 			num0 = 0;
 			num1 = 0;
 
-			for (int i = First_header-1; i >= 0; i--)  //ptr 指向的是my_decode的index
+			for (int i = First_header - 1; i >= 0; i--)  //ptr 指向的是my_decode的index
 			{
 				if (my_decode[i] == 0 && num1 == 0)
 				{
@@ -555,7 +555,7 @@ void count_error_rate(int First_header, int Second_header, int flag)
 									erroR += my_len_01_num[0][ptr_i + 1];
 									ptr_i += 2;          //位移两位
 								}
-								if (abs(diff_num) == 1)
+								else if (abs(diff_num) == 1)
 								{
 									erroR += (my_len_01_num[0][ptr_i + 1] + 1);
 									ptr_i += 2;
@@ -583,7 +583,7 @@ void count_error_rate(int First_header, int Second_header, int flag)
 									erroR += real_len_01_num[0][ptr_r + 1];
 									ptr_r += 2;
 								}
-								if (abs(diff_num) == 1)
+								else if (abs(diff_num) == 1)
 								{
 									erroR += (real_len_01_num[0][ptr_r + 1] + 1);
 									ptr_r += 2;
@@ -628,6 +628,28 @@ void count_error_rate(int First_header, int Second_header, int flag)
 	}
 }
 
+Mat my_norm(Mat src)
+{
+	Mat temp;
+	cvtColor(src, src, COLOR_BGR2HSV);
+	for (int y = 0; y < src.rows; y++)
+	{
+		int V_sum = 0;
+		for (int x = 0; x < src.cols; x++)
+		{
+			V_sum += src.at<Vec3b>(y, x)[2];
+		}
+		int V_pin = V_sum / src.cols;
+		int near_V = 0;
+		for (int x = 0; x < src.cols; x++)
+		{
+			if (src.at<Vec3b>(y, x)[2] > V_pin) src.at<Vec3b>(y, x)[2] = near_V;
+			else near_V = src.at<Vec3b>(y, x)[2];
+		}
+	}
+	cvtColor(src, src, COLOR_HSV2BGR);
+	return src;
+}
 /*
 int main()                         //找数据包   10帧投票
 {
@@ -665,12 +687,57 @@ int main()                         //找数据包   10帧投票
 
 */
 
+/*
+#define WINDOW_NAME "【效果图窗口】"        //为窗口标题定义的宏 
+
+void on_MouseHandle(int event, int x, int y, int flags, void* param);
+int main()
+{
+	int multiple = 1;//图片的放大倍数
+	Mat src;
+	VideoCapture cap;
+	cap.open("new.mp4");
+	cap >> src;
+	Mat outputImage;
+	resize(src, src, Size(multiple * src.cols, multiple * src.rows));
+	cvtColor(src, outputImage, COLOR_BGR2HSV);
+
+	//设置鼠标操作回调函数
+	namedWindow(WINDOW_NAME);
+	setMouseCallback(WINDOW_NAME, on_MouseHandle, (void*)&outputImage);
+	imshow(WINDOW_NAME, src);
+	while (1)
+	{
+		if (waitKey(10) == 27) break;//按下ESC键，程序退出
+	}
+	waitKey();
+	return 0;
+}
+
+void on_MouseHandle(int event, int x, int y, int flags, void* param)
+{
+
+	Mat& image = *(cv::Mat*)param;
+	switch (event)
+	{
+		//左键按下消息
+	case EVENT_LBUTTONDOWN:
+	{
+
+		cout << static_cast<int>(image.at<Vec3b>(y, x)[0]) << ",";
+		cout << static_cast<int>(image.at<Vec3b>(y, x)[1]) << ",";
+		cout << static_cast<int>(image.at<Vec3b>(y, x)[2]) << endl;
+	}
+	break;
+	}
+}
+*/
+
 int main()                  //求BER
 {
 	EVA my_eva;
-	Msrcr my_MSR;
+	//Msrcr my_MSR;
 	Mat src, oneline, split_src[3];
-	Mat src1;
 	int header_box[3];              //第一位为First_header 第二位为Second_header 第三位为是否找到header
 	VideoCapture cap;
 	//cap.open("stack.mp4");
@@ -681,20 +748,23 @@ int main()                  //求BER
 	{
 		cap >> src;
 		if (src.empty()) break;
-		//imshow("0", src);
-		//src = my_MSR.MultiScaleRetinex(src, power, sigma);
-		//imshow("1", src);
-		//waitKey(0);
 		my_eva.initial_vector();
 		sca = int(1080.0 / src.rows + 1);
 		cout << "sca == " << sca << endl;
-		resize(src, src, Size(1080, 960), (0, 0), (0, 0), INTER_LINEAR);
+		imshow("0", src);
+		waitKey(0);
+		src = my_norm(src);       //输入BGR图片，返回BGR
 		cvtColor(src, src, COLOR_BGR2GRAY);
+		normalize(src, src, 0, 255, NORM_MINMAX);
+		resize(src, src, Size(1080, 960), (0, 0), (0, 0), INTER_LINEAR);
 		cv::sort(src, src, SORT_EVERY_ROW + SORT_ASCENDING);
-		oneline = src(Rect((src.cols - 2), 0, 1, src.rows));
-		//split(src, split_src);               //RGB分离
-		//cv::sort(split_src[channel], split_src[channel], SORT_EVERY_ROW + SORT_ASCENDING);
-		//oneline = split_src[channel](Rect((src.cols - 2), 0, 1, src.rows));
+		oneline = src.col(src.cols - 2);
+		/*normalize(src, src, 0, 255, NORM_MINMAX);
+		resize(src, src, Size(1080, 960), (0, 0), (0, 0), INTER_LINEAR);
+		split(src, split_src);               //RGB分离
+		cv::sort(split_src[channel], split_src[channel], SORT_EVERY_ROW + SORT_ASCENDING);
+		oneline = split_src[channel].col(src.cols - 2);
+		*/
 		oneline = oneline.t();
 		my_eva.Sum_EVA(oneline, header_box, 0);
 		eyes_compare();
@@ -703,6 +773,3 @@ int main()                  //求BER
 	cout << "BER为" << error_num / sum_num << endl;
 	return 0;
 }
-
-
-

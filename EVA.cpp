@@ -373,6 +373,8 @@ void EVA::Find_length(int flag)          //对decode进行处理
 	else if (float(store_len[2]) / store_len[1] - store_len[2] / store_len[1] == 0) pxlength = store_len[1];*/
 	if (store_len[2] / store_len[0] >= 2 || store_len[1] / store_len[0] >= 2) pxlength = store_len[0];
 	else if (store_len[2] / store_len[1] >= 2) pxlength = store_len[1];
+	else if (store_len[0] - store_len[1] == -1) pxlength = store_len[0];
+	else if (store_len[1] - store_len[2] == -1)pxlength = store_len[1];
 	else 
 	{
 		for (int i = 0; i < 3; i++)

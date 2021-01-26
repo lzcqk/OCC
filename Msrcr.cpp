@@ -13,23 +13,20 @@ sigma为高斯模糊标准差
 
 void Msrcr::SingleScaleRetinex(const cv::Mat& src, cv::Mat& dst, int sigma)
 {
-
-	cv::Mat doubleI, gaussianI, logI, logGI, logR;
-
-
-
+	cv::Mat doubleI, gaussianI, logI, logGI, logR[3];
 	src.convertTo(doubleI, CV_64FC3, 1.0, 1.0);                    //转换范围，所有图像元素增加1.0保证cvlog正常
+	Mat split_src[3];
+	split(doubleI, split_src);
+	for (int i = 0; i < 3; i++)
+	{
+		cv::GaussianBlur(split_src[i], gaussianI, cv::Size(0, 0), sigma);    //SSR算法的核心之一，高斯模糊，当size为零时将通过sigma自动进行计算
+		cv::log(split_src[i], logI);
+		cv::log(gaussianI, logGI);
+		logR[i] = logI - logGI;                                           //Retinex公式，Log(R(x,y))=Log(I(x,y))-Log(Gauss(I(x,y)))
+		cv::normalize(logR[i], logR[i], 0, 255, cv::NORM_MINMAX, CV_8UC3);     //SSR算法的核心之二,线性量化 (似乎在量化的时候没有谁会将 Log[R(x,y)]进行Exp函数的运算而直接得到R(x,y)) 用log是因为人的感官为log的关系（明暗关系）
+	}
 
-	cv::GaussianBlur(doubleI, gaussianI, cv::Size(0, 0), sigma);    //SSR算法的核心之一，高斯模糊，当size为零时将通过sigma自动进行计算
-
-	cv::log(doubleI, logI);
-
-	cv::log(gaussianI, logGI);
-
-	logR = logI - logGI;                                           //Retinex公式，Log(R(x,y))=Log(I(x,y))-Log(Gauss(I(x,y)))
-
-	cv::normalize(logR, dst, 0, 255, cv::NORM_MINMAX, CV_8UC3);     //SSR算法的核心之二,线性量化 (似乎在量化的时候没有谁会将 Log[R(x,y)]进行Exp函数的运算而直接得到R(x,y))
-
+	merge(logR, 3, dst);
 }
 
 /********************************************************************************
@@ -47,28 +44,25 @@ sigma为高斯模糊标准差
 *********************************************************************************/
 Mat Msrcr::MultiScaleRetinex(const cv::Mat& src, double w[], double sigmas[])
 {
-	cv::Mat doubleI, logI,dst;
-
-	cv::Mat logR = cv::Mat::zeros(src.size(), CV_64FC3);
+	cv::Mat doubleI, logI, dst, split_src[3];
 
 	src.convertTo(doubleI, CV_64FC3, 1.0, 1.0);                    //转换范围，所有图像元素增加1.0保证cvlog正常
+	split(doubleI, split_src);
 
-	cv::log(doubleI, logI);
-
-	for (int i = 0; i < 3 ;i++)
-	{//Retinex公式，Log(R(x,y)) += w_k(Log(I(x,y))-Log(Gauss_k(I(x,y))))
-		cv::Mat tempGI;
-
-		cv::GaussianBlur(doubleI, tempGI, cv::Size(0, 0), sigmas[i]);
-
-		cv::Mat templogGI;
-
-		cv::log(tempGI, templogGI);
-
-		logR += w[i] * (logI - templogGI);
-
+	for (int j = 0; j < 3; j++)
+	{
+		cv::log(split_src[j], logI);
+		Mat logR = cv::Mat::zeros(src.size(), CV_64FC1);
+		for (int i = 0; i < 3; i++)
+		{//Retinex公式，Log(R(x,y)) += w_k(Log(I(x,y))-Log(Gauss_k(I(x,y))))
+			cv::Mat tempGI, templogGI;
+			cv::GaussianBlur(split_src[j], tempGI, cv::Size(0, 0), sigmas[i]);
+			cv::log(tempGI, templogGI);
+			logR =  logR + w[i] * (logI - templogGI);
+		}
+		cv::normalize(logR, split_src[j], 0, 255, cv::NORM_MINMAX, CV_8UC3);  //SSR算法的核心之二,线性量化 (似乎在量化的时候没有谁会将 Log[R(x,y)]进行Exp函数的运算而直接得到R(x,y))
 	}
-	cv::normalize(logR, dst, 0, 255, cv::NORM_MINMAX, CV_8UC3);  //SSR算法的核心之二,线性量化 (似乎在量化的时候没有谁会将 Log[R(x,y)]进行Exp函数的运算而直接得到R(x,y))
+	merge(split_src, 3, dst);
 	return dst;
 }
 
@@ -94,9 +88,9 @@ offset  偏差
 
 *********************************************************************************/
 
-Mat Msrcr::MultiScaleRetinexCR(const cv::Mat& src,double w[], double sigmas[], int alpha, int beta)
+Mat Msrcr::MultiScaleRetinexCR(const cv::Mat& src, double w[], double sigmas[], int alpha, int beta)
 {
-	cv::Mat doubleIl, logI,dst;
+	cv::Mat doubleIl, logI, dst;
 	cv::Mat logMSR = cv::Mat::zeros(src.size(), CV_64FC3);
 	src.convertTo(doubleIl, CV_64FC3, 1.0, 1.0);                    //转换范围，所有图像元素增加1.0保证cvlog正常
 	cv::log(doubleIl, logI);
@@ -145,7 +139,6 @@ Mat Msrcr::MultiScaleRetinexCR(const cv::Mat& src,double w[], double sigmas[], i
 		MSRCRc[i] = Cc[i].mul(logMSRc[i]);
 	}
 	cv::merge(MSRCRc, tempResult);
-
 	cv::normalize(tempResult, dst, 0, 255, cv::NORM_MINMAX, CV_8UC3);
 	return dst;
 }

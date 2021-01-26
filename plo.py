@@ -32,7 +32,7 @@ tebshow = []
 intep = 1
 
 y = np.linspace(1,100,len(table5))
-plt.plot(y,table5,color="black",linewidth=0.1)
+plt.plot(y,table5,color="blue",linewidth=0.1)
 plt.plot(y,table3,color="red",linewidth=0.1)
 #plt.scatter(y,table3,color="red",linewidths=0.1)
 print(table5)
